@@ -1,8 +1,17 @@
-# WhiteKnight 設計書（v0.1 / レビュー待ち）
+# WhiteKnight 設計書（v0.2 / 承認済み・M1 実装中）
 
 > 中小企業・自治体・大学研究室が、**自分たちが管理する** Web サービスと GitHub リポジトリの弱点を、専門家がいなくても見つけて直せるツール。
->
-> このドキュメントは「進め方 1. まず設計」の成果物です。確認いただくまで実装には入りません。末尾の「[確認したいこと](#11-確認したいこと)」にご回答ください。
+
+## 決定事項（2026-11-03 レビュー反映）
+
+| # | 論点 | 決定 | 反映箇所 |
+|---|------|------|----------|
+| D1 | GitHub 連携 | ログイン・リポジトリ読み取りとも **GitHub App**（ログインは App のユーザー認可＝OAuth と同じ画面遷移）。権限は **Contents: read と Metadata: read のみ**。PR 案の作成は後回し（M1 対象外、将来フェーズで権限追加） | §5.2, §6, §9 |
+| D2 | AI | **AI なしモードを既定**とし、ルールベースの結果だけで完結。AI は組織ごとのオプション。自治体向けに「**外部AIへコードを送らない**」設定（`metadata_only`）を明示し、設置環境側で強制もできる | §5.5, §5.7 |
+| D3 | 通知 | メール＋Webhook（Slack / Teams / Chatwork）。LINE WORKS は M1 不要、**アダプタ追加だけで増やせる設計** | §5.6 |
+| D4 | ホスティング | **Vercel ＋ Neon（Postgres）** | §1 |
+| D5 | 名称 | 「WhiteKnight」で仮置き。重複・商標の簡易調査は [NAMING.md](NAMING.md) | ― |
+| D6 | ビジコン資料 | まず Markdown（`docs/BUSINESS.md`）。スライドは別途 | §9 |
 
 ---
 
@@ -24,31 +33,36 @@
 ```mermaid
 flowchart LR
   U[利用者<br/>ブラウザ] -->|GitHub OAuth| W[Next.js App<br/>(Vercel)]
-  W --> DB[(Postgres)]
+  W --> DB[(Postgres<br/>Neon)]
   W -->|ジョブ登録| Q[[scan_jobs テーブル<br/>= ジョブキュー]]
   C[Vercel Cron<br/>毎分] --> WK[ワーカー API<br/>/api/worker/tick]
   WK -->|SKIP LOCKED で取得| Q
-  WK --> S[scanner パッケージ<br/>(純TS・副作用分離)]
+  WK --> S[core / rules / scanner<br/>(純TS・副作用分離)]
   S -->|tarball 取得| GH[GitHub API<br/>(GitHub App)]
   S -->|querybatch| OSV[OSV API]
   S -->|GET/HEAD 低頻度| SITE[利用者のWebサイト]
-  WK --> AI[Claude API<br/>やさしい説明・修正手順・PR案]
-  WK --> N[通知<br/>メール / Webhook]
+  WK -.->|オプション・既定OFF<br/>AiPolicy を通過したデータのみ| AI[外部AI<br/>Claude API]
+  WK --> N[通知アダプタ<br/>メール / Slack / Teams / Chatwork]
 ```
 
 ### モノレポ構成（pnpm workspaces）
 
 ```
-apps/web/                 Next.js (App Router) 画面・API・ワーカー
-packages/scanner/         診断エンジン（ルール・パーサ・チェッカー）。DB/HTTPはDIで注入しテスト容易に
-packages/rules-ja/        ルールごとの「やさしい日本語」テンプレート（危険度・説明・直し方）
-packages/cli/             ローカル診断CLI（デモ・オフライン利用。`whiteknight scan ./path`）
+apps/web/                 Next.js (App Router) 画面・API・ワーカー                    … M1 で骨組み
+packages/core/            型・危険度・fingerprint・マスク・診断エンジン・差分・AI利用方針 … M1
+packages/rules/           ルール一覧（ID・カテゴリ・既定の危険度）＋やさしい日本語テンプレート
+                          ＋ルールだけで完結する Markdown レポート生成                   … M1
+packages/scanner/         チェッカー（秘密情報・依存・設定・Web・TLS）。HTTP/DNS は DI      … M2〜M3
+packages/notify/          通知アダプタ（email / slack / teams / chatwork、将来 lineworks）  … M6
+packages/cli/             ローカル診断 CLI（デモ・オフライン利用）                          … M2
 demo/vulnerable-repo/     わざと弱点を入れたサンプル（※ダミー値のみ）
 demo/vulnerable-site/     ヘッダ不足や .git 公開を再現するローカル用ミニサーバ
-docs/                     設計書・ビジコン資料
+docs/                     設計書・名称調査・ビジコン資料
 ```
 
-`scanner` を Next.js から切り離すのは、(1) ルールを単体テストで固めやすい、(2) CLI でも同じエンジンを使える、(3) 将来ワーカーを Vercel 以外（Cloud Run 等）へ移しやすい、ためです。
+v0.1 からの変更：`core`（エンジン・方針）と `rules`（ルール定義＋日本語）を分け、チェッカーは `scanner` に置く。日本語テンプレートの無いルールはテストで失敗させる（「説明できない指摘」を出さないため）。
+
+エンジンを Next.js から切り離すのは、(1) ルールを単体テストで固めやすい、(2) CLI でも同じエンジンを使える、(3) 将来ワーカーを Vercel 以外（Cloud Run 等）へ移しやすい、ためです。
 
 ---
 
@@ -65,10 +79,11 @@ docs/                     設計書・ビジコン資料
 | S7 | ドメイン追加・所有確認 | `/targets/new/domain` → `/targets/[id]/verify` | DNS TXT 方式／ファイル設置方式のタブ、コピーボタン、「確認する」ボタン、失敗理由のやさしい説明 |
 | S8 | 対象詳細 | `/targets/[id]` | 診断履歴、スケジュール設定（毎日／毎週／毎月）、今すぐ診断 |
 | S9 | 診断レポート | `/scans/[id]` | 危険度順の指摘カード、前回からの差分（新規／解決済み）、PDF出力・印刷用表示 |
-| S10 | 指摘詳細 | `/findings/[id]` | **何が問題か／なぜ危ないか（たとえ話）／どう直すか（手順）**、該当箇所、「修正PRを作る」「対応済みにする」「リスク受容（理由必須）」 |
-| S11 | PR案プレビュー | `/findings/[id]/fix` | AI生成の差分プレビュー、説明文、「GitHubにPRを作成」ボタン（自動マージはしない） |
-| S12 | 通知設定 | `/settings/notifications` | メール宛先、Webhook（Slack/Teams/Chatwork 等）、通知する危険度のしきい値 |
+| S10 | 指摘詳細 | `/findings/[id]` | **何が問題か／なぜ危ないか（たとえ話）／どう直すか（手順）**、該当箇所、「対応済みにする」「誤検知として扱う」「リスク受容（理由必須）」。AI が有効なら「AIによる補足（参考）」欄を別枠で表示 |
+| ~~S11~~ | ~~PR案プレビュー~~ | ― | **後回し（D1）**。将来フェーズで追加 |
+| S12 | 通知設定 | `/settings/notifications` | メール宛先、Webhook（Slack/Teams/Chatwork）、通知する危険度のしきい値 |
 | S13 | 組織・メンバー設定 | `/settings/org` | メンバー・権限（管理者／担当者／閲覧のみ）、監査ログ |
+| S14 | AI 利用設定 | `/settings/ai` | 3 つのモードを説明付きで選択（既定「使わない」）。送信されるデータの具体例を表示。設置環境で制限されている場合は選べない理由を表示。変更は owner のみ・監査ログに記録 |
 
 UI 方針：専門用語は使わず、必要な場合は「CSP（＝ページに読み込んでよい部品のリスト）」のように**用語＋言い換え**を併記。色だけに頼らない危険度表示（アイコン＋文字）。
 
@@ -89,7 +104,6 @@ erDiagram
   scans ||--o{ findings : ""
   issues ||--o{ findings : "同一問題の各回の出現"
   targets ||--o{ issues : ""
-  issues ||--o{ fix_proposals : ""
   organizations ||--o{ notification_channels : ""
   organizations ||--o{ audit_logs : ""
 ```
@@ -97,7 +111,7 @@ erDiagram
 | テーブル | 主なカラム | 備考 |
 |----------|-----------|------|
 | `users` | id, github_user_id, login, email, name, consented_at | 同意日時を必須化 |
-| `organizations` | id, name, plan, created_at | 料金プランと紐づけ |
+| `organizations` | id, name, plan, **ai_mode**(`off`/`metadata_only`/`with_code`, 既定 `off`), created_at | 料金プランと紐づけ。ai_mode の変更は監査ログ必須 |
 | `memberships` | user_id, org_id, role(`owner`/`editor`/`viewer`) | 全クエリで org スコープを強制 |
 | `github_installations` | id, org_id, installation_id, account_login | トークンは都度発行（保存しない） |
 | `targets` | id, org_id, kind(`repo`/`domain`), repo_full_name, domain_host, status(`pending_verification`/`active`/`paused`), created_by | |
@@ -107,10 +121,10 @@ erDiagram
 | `scan_jobs` | id, scan_id, step, status(`queued`/`running`/`done`/`failed`), attempts, locked_until, error | `FOR UPDATE SKIP LOCKED` でキュー化 |
 | `issues` | id, target_id, fingerprint(UNIQUE per target), rule_id, severity, state(`open`/`fixed`/`accepted_risk`/`false_positive`), first_seen_scan_id, last_seen_scan_id, accepted_reason | **「新しい問題」判定の単位** |
 | `findings` | id, scan_id, issue_id, location(jsonb: path/line/url/header), evidence_masked, raw_meta(jsonb) | 各回の出現記録 |
-| `fix_proposals` | id, issue_id, explanation_md, patch_diff, pr_url, status, model, created_at | AI 生成物は model 名と日時を保存 |
-| `notification_channels` | id, org_id, kind(`email`/`webhook`), config_encrypted, min_severity | Webhook URL は暗号化保存 |
+| `ai_supplements` | id, issue_id, ai_mode, body_md, model, created_at | AI 有効時のみ。どのモードで作ったかを保存。（PR 案用の `fix_proposals` は将来フェーズ） |
+| `notification_channels` | id, org_id, kind(text: `email`/`slack`/`teams`/`chatwork`…), config_encrypted, min_severity, enabled | kind は enum にせず text＋アプリ側の登録済みアダプタで検証（LINE WORKS 追加時に DB 変更不要）。Webhook URL は暗号化保存 |
 | `notifications` | id, org_id, scan_id, channel_id, sent_at, payload_summary | 重複送信防止 |
-| `audit_logs` | id, org_id, user_id, action, target_id, at, ip | 所有確認・診断実行・PR作成・リスク受容を記録 |
+| `audit_logs` | id, org_id, user_id, action, target_id, at, ip | 所有確認・診断実行・AI 設定変更・リスク受容を記録 |
 
 **fingerprint（同一問題の識別子）** = `sha256(rule_id + target_id + 安定化した位置情報)`。
 行番号は変わりやすいので使わず、「ファイルパス＋マスク済み秘密のハッシュ」「パッケージ名＋脆弱性ID」「ヘッダ名」などで作る。前回の診断に無かった fingerprint ＝ **新規の問題**、前回あって今回無い ＝ **解決済み**。
@@ -142,7 +156,8 @@ erDiagram
    → (2) 収集：対象ごとのチェッカーを実行（下記）→ RawFinding[]
    → (3) 正規化：ルールIDごとに危険度付与・fingerprint 計算・秘密情報マスク
    → (4) 差分：issues と突き合わせ → 新規 / 継続 / 解決済み
-   → (5) 説明生成：ルールの日本語テンプレートで必ず埋める → AIで状況に合わせて補足（失敗時はテンプレのみ）
+   → (5) 説明生成：ルールの日本語テンプレートで必ず埋める（ここでレポートは完成）
+         → AI が有効な組織だけ、AiPolicy を通したデータで補足を生成（失敗しても影響なし）
    → (6) 保存・スコア計算
    → (7) 通知：新規 かつ しきい値以上 の問題があれば通知
 ```
@@ -159,7 +174,8 @@ erDiagram
 | 脆弱な依存パッケージ | ロックファイルを解析 → OSV `querybatch` に照会 → 修正版バージョンを提示 | `package-lock.json` / `yarn.lock` / `pnpm-lock.yaml` / `requirements.txt` / `poetry.lock` / `Pipfile.lock` / `Gemfile.lock` / `go.sum` / `composer.lock` |
 | 危険なファイルのコミット | パス規則で検出 | `.env`（`.env.example` は除外）、`*.pem`、`id_rsa`、`*.sqlite`、`credentials.json`、`*.tfstate`、`.npmrc` 内トークン |
 | 危険な設定 | 静的解析（IaC・設定ファイル） | Terraform の S3 `acl = "public-read"`／`block_public_acls = false`、Firebase/Firestore ルールの `allow read, write: if true`、GitHub Actions の `pull_request_target`＋PR ヘッドの checkout、`permissions: write-all`、Docker Compose の既定パスワード、`.gitignore` に `.env` が無い |
-| リポジトリ設定（API） | GitHub API で読み取り | デフォルトブランチ保護の有無、Dependabot アラート/シークレットスキャン有効化の有無（読める範囲で） |
+
+> D1 により GitHub App の権限は Contents / Metadata の read のみ。ブランチ保護（Administration: read が必要）や Dependabot アラート（Dependabot alerts: read が必要）の読み取りは MVP では行わない。依存の脆弱性は OSV で独自に判定するので影響はない。
 
 ### 5.3 Web サイト診断（確認済みホストのみ）
 
@@ -182,19 +198,35 @@ erDiagram
 | 高 | 🟠 今週中に | CVSS 7.0 以上の依存脆弱性、公開バケット設定、証明書の期限切れ |
 | 中 | 🟡 計画的に | HSTS/CSP 無し、HTTPS リダイレクト無し、Cookie 属性不足、旧TLS |
 | 低 | 🔵 余裕があれば | バージョン情報露出、Referrer-Policy 無し |
-| 情報 | ⚪ 参考 | security.txt 無し、ブランチ保護無し（小規模チーム） |
+| 情報 | ⚪ 参考 | security.txt 無し |
 
-### 5.5 レポートと AI の役割分担
+### 5.5 レポートと AI の役割分担（D2：AI なしが既定）
 
 - **事実（何が・どこで・危険度）はルールエンジンが決める。AI は決めない。**
-- ルールごとに人がレビューした日本語テンプレート（`packages/rules-ja`）を持ち、AI 無しでもレポートは完成する。
-- AI（Claude API）は次だけを担当：
-  1. 利用者の環境（使っている言語・フレームワーク・ホスティング）に合わせた**具体的な修正手順**
-  2. 修正可能なものについての**PR 案（差分＋説明文）**：例）`next.config.js`/`vercel.json`/`.htaccess`/`nginx.conf` へのヘッダ追加、`.gitignore` へ `.env` 追加と追跡解除、依存バージョンの引き上げ、Actions の `permissions` 最小化
-- AI への入力は**マスク済み**の情報と関連ファイルの抜粋のみ。秘密情報の値は送らない。
-- 出力は構造化（JSON スキーマ）で受け、差分は `git apply --check` 相当で適用可能性を検証してから表示。
-- PR は利用者がボタンを押したときだけ、`whiteknight/fix-<issue>` ブランチに作成。**自動マージはしない**。
-- 秘密情報の漏えいは PR で「消して終わり」にしない：**まず鍵の無効化・再発行**を最優先手順として提示（履歴に残るため）。
+- ルールごとに人がレビューした日本語テンプレート（`packages/rules`）を持ち、**AI 無しでレポートが完成する**。これが標準の動作。
+- 秘密情報の漏えいは「消して終わり」にしない：テンプレートの最初の手順で**鍵の無効化・再発行**を求める（テストで保証）。
+- AI（Claude API）を組織が有効にした場合だけ、利用者の環境（言語・フレームワーク・ホスティング）に合わせた**具体的な修正手順の補足**を生成し、テンプレートの説明とは別枠「AIによる補足（参考）」として表示する。
+- PR 案（差分）の生成・PR 作成は **D1 により後回し**。追加時は GitHub App に Pull requests: write / Contents: write を追加し、利用者に再承認してもらう。
+
+### 5.7 外部 AI 利用方針（AiPolicy）
+
+| モード | 意味 | 外部 AI に送るもの |
+|--------|------|-------------------|
+| `off`（**既定**） | AI を使わない | 何も送らない。AI クライアントを呼ばない |
+| `metadata_only` | **外部AIへコードを送らない** | ルールID・カテゴリ・危険度・ファイル名/URL（行番号なし）・利用技術名・短い補足値（200 文字以下・1 行のもの） |
+| `with_code` | 関連コードも送る | 上記＋問題箇所の前後のコード抜粋（最大 4,000 文字、秘密情報は伏せ字化）。**秘密情報カテゴリの指摘ではコード・証拠・補足値を一切送らない** |
+
+実効モードの決定（`resolveAiPolicy`）：**組織の設定**と**設置環境の上限**のうち厳しい方。
+
+- `WHITEKNIGHT_AI_HARD_DISABLE=true` … 設置環境として外部 AI を一切呼ばない（自治体の閉域・オンプレ向け）
+- `WHITEKNIGHT_AI_MAX_MODE=off|metadata_only|with_code` … 上限。不正な値は `off` 扱い（安全側）
+- 組織の設定が未設定・不正なら `off`
+
+実装上の担保（M1 で実装済み）：
+
+- 外部 AI に渡すデータは `buildAiPayload()` でしか作れない型（`AiPayload`、ブランド型）にし、M4 で作る AI クライアントはこの型しか受け取らない → **方針チェックを経ないデータは型レベルで送れない**
+- レポート末尾に「外部AIを使ったか・何を送ったか」を必ず記載（`aiUsageStatement()`）
+- テスト：off で何も作られない／metadata_only でコードが混入しない／秘密情報が JSON 化した送信データに含まれない／環境の上限が組織設定に勝つ
 
 レポート文面の例：
 
@@ -206,16 +238,31 @@ erDiagram
 ### 5.6 定期診断と通知
 
 - Vercel Cron（毎分）→ `/api/worker/tick`（共有シークレットで保護）→ `next_run_at <= now()` のスケジュールからジョブ生成 → キュー処理
-- 通知は「**新規の問題**がしきい値以上で見つかった」「所有確認が失効した」「証明書の期限が近い」で送信。同じ問題を毎回通知しない
-- MVP のチャネル：メール（Resend）＋汎用 Webhook（Slack / Microsoft Teams / Chatwork 形式のテンプレ）
-- 通知本文にも秘密情報は含めない。詳細はログインして見る
+- 通知は「**新規または再発の問題**がしきい値以上で見つかった」「所有確認が失効した」「証明書の期限が近い」で送信。継続中の問題を毎回通知しない（`notifiableFindings()`、M1 実装済み）
+- MVP のチャネル：メール（Resend）、Slack（Incoming Webhook）、Microsoft Teams（Workflows Webhook）、Chatwork（API トークン＋ルームID）
+- 通知本文にも秘密情報は含めない（伏せ字の値も載せない）。詳細はログインして見る
+
+**拡張できる設計（D3）**：通知はアダプタ方式にする。
+
+```ts
+interface NotificationAdapter<Config> {
+  kind: string;                       // "email" | "slack" | "teams" | "chatwork" | 将来 "lineworks"
+  configSchema: ZodType<Config>;      // 設定画面のバリデーションにも使う
+  send(message: NotificationMessage, config: Config, signal: AbortSignal): Promise<void>;
+}
+```
+
+- `NotificationMessage` はチャネル非依存（件名・危険度別件数・新規指摘のタイトル一覧・レポートURL）。各アダプタが自分の形式（Slack Block Kit、Teams Adaptive Card、Chatwork 記法…）に変換する
+- LINE WORKS を追加するときは、アダプタ 1 ファイル＋設定画面のフォーム定義を足すだけ。DB の `kind` は text なのでマイグレーション不要
+- Webhook 送信先も SSRF 対策（プライベート IP 拒否）を通す
 
 ---
 
 ## 6. 認証・権限・ツール自身のセキュリティ
 
-- **ログイン**：GitHub OAuth（Auth.js）。要求スコープは最小（`read:user`, `user:email`）
-- **リポジトリアクセス**：OAuth の `repo` スコープ（全リポジトリ読み書き）は強すぎるため、**GitHub App**（リポジトリ単位で許可、権限：Contents 読み取り / Metadata 読み取り / Pull requests 書き込み〔PR 作成時のみ使用〕/ Dependabot alerts 読み取り）を採用
+- **ログイン**：GitHub App の「ユーザー認可」（OAuth と同じ画面遷移、Auth.js の GitHub プロバイダで扱える）を使う。OAuth App の scope 方式と違い、得られるユーザートークンの権限は **App の権限（Contents/Metadata の read）とユーザー本人の権限の重なり**に限定される
+- **リポジトリアクセス**：OAuth の `repo` スコープ（全リポジトリ読み書き）は強すぎるため、**GitHub App**（リポジトリ単位で許可）を採用。権限は **Contents: read と Metadata: read のみ**（D1）。書き込み権限は一切持たない
+- 利用者が admin/maintain かどうかは、ユーザートークンで `GET /user/installations/{installation_id}/repositories` を呼び、各リポジトリの `permissions.admin` / `permissions.maintain` で確認する（非公開リポジトリも App がインストールされていれば確認できる）
 - 組織（テナント）分離：全リポジトリ層クエリに `org_id` を必須引数化
 - 保存データ暗号化：Webhook URL 等は AES-256-GCM（鍵は環境変数、ローテーション可能な鍵ID付き）
 - CSRF（Auth.js 標準）、レート制限（診断実行・所有確認ボタン）、監査ログ
@@ -264,27 +311,23 @@ erDiagram
 
 | フェーズ | 内容 | 完了条件 |
 |----------|------|----------|
-| M1 | モノレポ雛形、scanner の型・ルール基盤、CI（lint/型/テスト） | `pnpm test` が通る |
+| M1 | モノレポ雛形、core（型・エンジン・マスク・fingerprint・差分・**AI 利用方針**）、rules（全ルール定義＋日本語テンプレート＋**AI なしレポート**）、Web 骨組み（自身に厳格なセキュリティヘッダ）、CI、README（倫理と利用範囲） | `pnpm check` と `next build` が通る |
 | M2 | リポジトリ診断（秘密情報・危険ファイル・危険設定・依存＋OSV）＋CLI | demo/vulnerable-repo で全弱点を検出、誤検知テスト合格 |
 | M3 | Web 診断＋所有確認＋安全装置 | demo/vulnerable-site で検出、安全装置テスト合格 |
-| M4 | 日本語テンプレート＋AI 修正手順・PR 案 | AI 無しでもレポート完成、AI ありで差分検証通過 |
-| M5 | Next.js 画面・GitHub OAuth/App・DB・ジョブキュー | E2E 合格 |
-| M6 | 定期診断・差分・通知 | 新規問題のみ通知されるテスト合格 |
-| M7 | README（**倫理と利用範囲**の節）・デモ動作確認・ビジコン1枚資料 | デモ手順どおりに再現できる |
+| M4 | AI 補足（オプション）：AiPayload だけを受け取る AI クライアント、AI 設定画面 | AI off で外部呼び出しゼロ、metadata_only でコード非送信をテストで保証 |
+| M5 | Next.js 画面・GitHub OAuth/App・DB（Neon）・ジョブキュー | E2E 合格 |
+| M6 | 定期診断・通知アダプタ（email / Slack / Teams / Chatwork） | 新規問題のみ通知されるテスト合格 |
+| M7 | デモ動作確認・ビジコン資料（`docs/BUSINESS.md`） | デモ手順どおりに再現できる |
+| 将来 | PR 案の生成と PR 作成（権限追加）、LINE WORKS 通知、コミット履歴の秘密情報スキャン | ― |
 
 ---
 
 ## 10. 先送り（MVP 外）
 
-コミット履歴の秘密情報スキャン、コンテナイメージ診断、クラウド設定（AWS/GCP アカウント）直接診断、SBOM 出力、LINE WORKS 通知、自治体向けオンプレ版、ISMAP 等の認証対応。
+PR 案の生成・PR 作成、コミット履歴の秘密情報スキャン、ブランチ保護など GitHub 設定の診断（追加権限が必要）、コンテナイメージ診断、クラウド設定（AWS/GCP アカウント）直接診断、SBOM 出力、LINE WORKS 通知、自治体向けオンプレ版、ISMAP 等の認証対応。
 
 ---
 
-## 11. 確認したいこと
+## 11. 確認事項
 
-1. **GitHub 連携方式**：ログインは GitHub OAuth、リポジトリ読み取りは **GitHub App**（リポジトリ単位の最小権限）にする案でよいか。OAuth の `repo` スコープだけで済ませる方が実装は簡単だが、全リポジトリへの書き込み権限を預かることになる
-2. **AI のプロバイダ**：Claude API（Anthropic）を想定。別の希望はあるか／自治体向けに「AI を使わないモード」を最初から用意すべきか
-3. **通知チャネル**：MVP はメール＋Webhook（Slack/Teams/Chatwork）でよいか。LINE WORKS は必要か
-4. **ホスティング**：Vercel ＋ マネージド Postgres（Neon など）で進めてよいか。リポジトリの tarball 処理が重い場合はワーカーだけ別基盤に移す可能性あり
-5. **プロダクト名**：仮で「WhiteKnight」。変更希望はあるか
-6. **ビジコン資料の形式**：Markdown（`docs/BUSINESS.md`）でよいか、スライド形式が必要か
+v0.1 の確認事項はすべて回答済み（冒頭の「決定事項」を参照）。

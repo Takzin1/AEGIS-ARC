@@ -1,0 +1,131 @@
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --text: #1b1f24;
+  --muted: #57606a;
+  --border: #d8dee4;
+  --accent: #1f5fbf;
+  --accent-soft: #e8f0fc;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216;
+    --surface: #171b21;
+    --text: #e6e9ed;
+    --muted: #9aa4ae;
+    --border: #2c333b;
+    --accent: #7fb0ff;
+    --accent-soft: #1a2638;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  line-height: 1.8;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 16px 96px;
+}
+
+.hero h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1.4;
+  margin: 8px 0 16px;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0;
+}
+
+.lead {
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+section {
+  margin-top: 48px;
+}
+
+h2 {
+  font-size: 1.3rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+}
+
+.cards,
+.modes {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.cards li,
+.modes li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.cards p,
+.modes p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.modes li[data-default="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.plain li {
+  margin-bottom: 8px;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.rule-counts {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.rule-counts li {
+  display: flex;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
