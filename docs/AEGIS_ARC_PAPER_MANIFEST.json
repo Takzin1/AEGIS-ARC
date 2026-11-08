@@ -1,0 +1,68 @@
+{
+  "project": "AEGIS-ARC",
+  "version": "0.2",
+  "created_at": "2026-11-08",
+  "distribution_policy": "Source links, citation, hashes, and derived summaries only. PDFs not copied. No third-party datasets or malicious sample files.",
+  "research_papers": [
+    {
+      "id": "saju-azim-2026-soc",
+      "title": "Toward Autonomous SOC Operations: End-to-End LLM Framework for Threat Detection, Query Generation, and Resolution in Security Operations",
+      "authors": [
+        "Md Hasan Saju",
+        "Akramul Azim"
+      ],
+      "publication": "Proceedings of Machine Learning Research 318 (2026)",
+      "source_uri": "https://proceedings.mlr.press/v318/saju26a.html",
+      "uploaded_pdf_sha256": "b149764d55f2a188145615d9c46ffb4d10fd98e54a944c12bc9d5f159c2ffdfd",
+      "paper_license": "CC BY 4.0 except separately indicated material",
+      "redistribute_pdf": false,
+      "dataset_released_with_pdf": false,
+      "tasks": [
+        "binary-detection",
+        "query-executability",
+        "multiclass-resolution"
+      ],
+      "status": "methods referenced; no raw data imported"
+    },
+    {
+      "id": "chona-kozlov-kumar-2026-cdb",
+      "title": "Cyber Defense Benchmark: Agentic Threat Hunting Evaluation for LLMs in SecOps",
+      "authors": [
+        "Alankrit Chona",
+        "Igor Kozlov",
+        "Ambuj Kumar"
+      ],
+      "publication": "Simbian AI Technical Report v1.0 (April 2026)",
+      "source_uri": "https://github.com/simbianai/cyber_defense_benchmark",
+      "uploaded_pdf_sha256": "c7c9bb022cbe3553652045f10348dd57ac6d7dd138cce7a5d4e556f9a505b281",
+      "paper_license": "not stated in supplied PDF: needs verification",
+      "redistribute_pdf": false,
+      "dataset_released_with_pdf": false,
+      "tasks": [
+        "agentic-hunting",
+        "narrative-step-coverage",
+        "budgeted-queries"
+      ],
+      "status": "methods referenced; no raw data imported"
+    },
+    {
+      "id": "deason-et-al-2025-cybersoceval",
+      "title": "CyberSOCEval: Benchmarking LLMs Capabilities for Malware Analysis and Threat Intelligence Reasoning",
+      "authors": [
+        "Lauren Deason et al."
+      ],
+      "publication": "arXiv:2509.20166v2 (2025-11-10)",
+      "source_uri": "https://arxiv.org/abs/2509.20166",
+      "dataset_uri": "https://github.com/CrowdStrike/CyberSOCEval_data",
+      "uploaded_pdf_sha256": "dc9c8dc1ff1716e0231fc70a781fdc33bea5c35707d886f5392b407df14868e0",
+      "paper_license": "not stated in supplied PDF: needs verification",
+      "redistribute_pdf": false,
+      "dataset_released_with_pdf": false,
+      "tasks": [
+        "malware-analysis-qa",
+        "threat-intel-multichoice"
+      ],
+      "status": "methods referenced; no raw data imported"
+    }
+  ]
+}
