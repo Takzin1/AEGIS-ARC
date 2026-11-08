@@ -6,3 +6,4 @@ export * from "./catalog";
 export * from "./engine";
 export * from "./diff";
 export * from "./ai-policy";
+export * from "./evaluation";
