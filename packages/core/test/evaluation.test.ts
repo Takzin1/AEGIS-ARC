@@ -83,7 +83,7 @@ describe("paper-derived research scorecards (synthetic fixtures only)", () => {
     ], ["benign", "malicious"]);
     expect(result.accuracy).toBeCloseTo(2 / 3);
     expect(result.macroRecall).toBeCloseTo(0.75);
-    expect(result.macroF1).toBeCloseTo((2 / 3 + 0.8) / 2);
+    expect(result.macroF1).toBeCloseTo(2 / 3);
     expect(() => scoreMulticlass([{ expected: "unknown", predicted: "benign" }], ["benign"])).toThrow(/Unknown/);
   });
 
