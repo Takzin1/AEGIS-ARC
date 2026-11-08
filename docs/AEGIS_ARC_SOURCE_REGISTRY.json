@@ -1,0 +1,173 @@
+{
+  "project": "AEGIS-ARC",
+  "version": "0.1",
+  "asOf": "2026-11-08",
+  "status": "proposed external-source registry; no bulk data imported",
+  "provenanceRequired": [
+    "source_uri",
+    "retrieved_at_utc",
+    "source_version",
+    "license_id",
+    "sha256",
+    "parser_version",
+    "evidence_refs"
+  ],
+  "sources": [
+    {
+      "id": "MITRE-ATTACK-20.1",
+      "type": "taxonomy",
+      "name": "MITRE ATT&CK STIX 2.1 Enterprise v20.1",
+      "url": "https://github.com/mitre-attack/attack-stix-data",
+      "version": "20.1 released 2026-11-05",
+      "license": "MITRE ATT&CK license (copyright notice and license retention)",
+      "priority": "P0",
+      "mode": "version-pinned JSON",
+      "purpose": "technique mapping and detection lineage",
+      "commercial": "permitted with MITRE license notice"
+    },
+    {
+      "id": "OCSF",
+      "type": "schema",
+      "name": "Open Cybersecurity Schema Framework",
+      "url": "https://github.com/ocsf/ocsf-schema",
+      "version": "pin release/commit before ingest",
+      "license": "Apache-2.0",
+      "priority": "P0",
+      "mode": "schema release",
+      "purpose": "normalize security event records",
+      "commercial": "permitted"
+    },
+    {
+      "id": "SIGMA",
+      "type": "rules",
+      "name": "SigmaHQ detection rules",
+      "url": "https://github.com/SigmaHQ/sigma",
+      "version": "pin commit and individual rule id",
+      "license": "DRL-1.1: author/source/license attribution including rule-match outputs",
+      "priority": "P0",
+      "mode": "rule files only",
+      "purpose": "deterministic candidate detection signatures",
+      "commercial": "permitted with attribution obligations"
+    },
+    {
+      "id": "CISA-KEV",
+      "type": "vulnerability",
+      "name": "CISA Known Exploited Vulnerabilities",
+      "url": "https://github.com/cisagov/kev-data",
+      "version": "latest snapshot with retrieval timestamp",
+      "license": "CC0 (verify authoritative file notice)",
+      "priority": "P0",
+      "mode": "JSON feed",
+      "purpose": "exploitation-aware prioritization",
+      "commercial": "permitted"
+    },
+    {
+      "id": "OSV",
+      "type": "vulnerability",
+      "name": "Open Source Vulnerabilities API",
+      "url": "https://google.github.io/osv.dev/api/",
+      "version": "record retrieval timestamp and vulnerability modified date",
+      "license": "source-dependent record terms; verify before redistributing",
+      "priority": "P0",
+      "mode": "version / querybatch API",
+      "purpose": "match package dependencies and affected versions",
+      "commercial": "API use; re-distribution rights per source"
+    },
+    {
+      "id": "D3FEND",
+      "type": "knowledge-graph",
+      "name": "MITRE D3FEND Ontology",
+      "url": "https://d3fend.mitre.org/resources/ontology/",
+      "version": "pin downloadable ontology + mapping digest",
+      "license": "check file and website terms",
+      "priority": "P1",
+      "mode": "JSON-LD mappings",
+      "purpose": "map findings to defensive techniques",
+      "commercial": "license review required"
+    },
+    {
+      "id": "OTRF-SEC-DATASETS",
+      "type": "evaluation-data",
+      "name": "OTRF Security-Datasets",
+      "url": "https://github.com/OTRF/Security-Datasets",
+      "version": "pin dataset + scenario and archive hash",
+      "license": "MIT for repository; verify third-party artifacts separately",
+      "priority": "P1",
+      "mode": "download selected offline logs",
+      "purpose": "ATT&CK mapped security event replay",
+      "commercial": "verify each artifact"
+    },
+    {
+      "id": "CYBERSOCEVAL",
+      "type": "benchmark",
+      "name": "Meta/CrowdStrike CyberSOCEval data",
+      "url": "https://github.com/CrowdStrike/CyberSOCEval_data",
+      "version": "pin commit, inspect LICENSE-DATA.md",
+      "license": "multiple source-specific licenses",
+      "priority": "P1",
+      "mode": "evaluation only",
+      "purpose": "threat-intel / malware reasoning eval",
+      "commercial": "license review required"
+    },
+    {
+      "id": "CSE-CIC-IDS2018",
+      "type": "evaluation-data",
+      "name": "CSE-CIC-IDS2018",
+      "url": "https://www.unb.ca/cic/datasets/ids-2018.html",
+      "version": "dataset snapshot, schedule and source-link",
+      "license": "attribution and official source link required",
+      "priority": "P2",
+      "mode": "offline flows and logs",
+      "purpose": "network anomaly generalization",
+      "commercial": "citation and link required; verify changes"
+    },
+    {
+      "id": "UNSW-NB15",
+      "type": "evaluation-data",
+      "name": "UNSW-NB15",
+      "url": "https://research.unsw.edu.au/projects/unsw-nb15-dataset",
+      "version": "official train/test partition",
+      "license": "academic free use; commercial requires author agreement",
+      "priority": "P2",
+      "mode": "research evaluation only",
+      "purpose": "out-of-distribution transfer robustness",
+      "commercial": "not cleared"
+    },
+    {
+      "id": "FIRST-2026-AGENDA",
+      "type": "conference-agenda",
+      "name": "FIRST Annual Conference 2026",
+      "url": "https://www.first.org/conference/2026/program",
+      "version": "2026 programme",
+      "license": "reference only; do not mirror talks/slides",
+      "priority": "P1",
+      "mode": "manual research",
+      "purpose": "generate test hypotheses on LLM safety, evidence and timelines",
+      "commercial": "no mirroring"
+    },
+    {
+      "id": "USENIX-SEC26",
+      "type": "conference-program",
+      "name": "USENIX Security 2026 Accepted Papers",
+      "url": "https://www.usenix.org/conference/usenixsecurity26/session/usenix-security-cycle-1-accepted-papers",
+      "version": "2026 programme",
+      "license": "reference/citation only",
+      "priority": "P1",
+      "mode": "manual literature tracking",
+      "purpose": "telemetry manipulation and verifiable auditing research",
+      "commercial": "no mirroring"
+    },
+    {
+      "id": "NIST-IR-R3",
+      "type": "guideline",
+      "name": "NIST SP 800-61 Rev. 3",
+      "url": "https://csrc.nist.gov/pubs/sp/800/61/r3/final",
+      "version": "April 2025",
+      "license": "NIST public publication; cite authors and version",
+      "priority": "P0",
+      "mode": "design reference",
+      "purpose": "incident response lifecycle and human accountability",
+      "commercial": "citation"
+    }
+  ]
+}
